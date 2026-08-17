@@ -237,11 +237,9 @@ public final class a {
                 return;
             }
 
-            // Theo dõi vị trí phao câu thật: nếu đang chờ cá cắn/đang kéo cá mà phao câu
-            // (fishHook) đột ngột biến mất (server thu cần/xoá phao giữa chừng) thì câu lại
-            // ngay lập tức, thay vì đoán mò theo thời gian cố định (câu cá ở đây vốn phải
-            // chờ lâu là bình thường, không nên coi "chờ lâu" là lỗi).
-            if (this.f == EnumC0000a.WAITING_BITE || this.f == EnumC0000a.FIGHTING) {
+            // Chỉ kiểm tra mất phao khi đang chờ cá cắn (WAITING_BITE). 
+            // Khi đã vào FIGHTING, cho phép tiếp tục đánh mini-game kể cả khi server clear phao.
+            if (this.f == EnumC0000a.WAITING_BITE) {
                 boolean hookPresent = class_310Var.player.fishHook != null && !class_310Var.player.fishHook.isRemoved();
                 if (hookPresent) {
                     this.hookSeenThisCast = true;
@@ -251,15 +249,14 @@ public final class a {
                 }
             }
 
-            // Watchdog dự phòng: nếu kẹt quá lâu ở cùng 1 trạng thái vì bất kỳ lý do nào khác
-            // (không riêng chuyện phao câu), vẫn tự động reset thay vì đơ mãi.
+            // Watchdog: 3 phút (180000ms) cho WAITING_BITE, 2 phút (120000ms) cho các trạng thái khác/FIGHTING
             if (this.f != this.lastObservedState) {
                 this.lastObservedState = this.f;
                 this.stateEnteredAtNanos = System.nanoTime();
             } else {
-                long watchdogMs = (this.f == EnumC0000a.WAITING_BITE) ? 95000 : 15000;
+                long watchdogMs = (this.f == EnumC0000a.WAITING_BITE) ? 180000 : 120000;
                 if ((System.nanoTime() - this.stateEnteredAtNanos) / 1000000 > watchdogMs) {
-                    c(class_310Var, "Watchdog: kẹt quá lâu - tự khởi động lại");
+                    c(class_310Var, "Watchdog: không hoạt động quá thời gian cho phép - tự khởi động lại");
                     return;
                 }
             }
@@ -304,8 +301,6 @@ public final class a {
                         break;
                 }
             } catch (Exception ex) {
-                // Không để bất kỳ lỗi bất ngờ nào (ví dụ do server xoá phao câu
-                // giữa chừng gây dữ liệu không hợp lệ) làm đơ mod vĩnh viễn.
                 c(class_310Var, "Lỗi xử lý (" + ex.getClass().getSimpleName() + ") - tự khởi động lại");
             }
         }
@@ -397,7 +392,6 @@ public final class a {
         if (!class_310Var.player.getInventory().getStack(this.a.rodHotbarSlot - 1).isOf(Items.FISHING_ROD)) {
             this.rodMissingStreak++;
             if (this.rodMissingStreak < 5) {
-                // Có thể client tạm thời chưa đồng bộ (vừa gắn mồi/đổi cần) - thử lại vài lần trước khi báo lỗi hẳn
                 this.g = "Đang kiểm tra lại Hotbar cần câu...";
                 return false;
             }
@@ -426,16 +420,8 @@ public final class a {
         return false;
     }
 
-    /**
-     * Ngưỡng độ bền còn lại (số lượt dùng còn lại) để coi cần câu là "gần hỏng".
-     */
     private static final int ROD_NEAR_BROKEN_THRESHOLD = 5;
 
-    /**
-     * Nếu cần câu ở Hotbar cần đang gần hỏng, tự động tìm 1 cần câu khác còn tốt
-     * trong túi đồ để thay vào, đồng thời đưa cần cũ (gần hỏng) ra khỏi Hotbar
-     * cần để tránh bị chọn lại lần sau.
-     */
     private boolean autoSwitchRodIfNeeded(MinecraftClient class_310Var) {
         ClientPlayerEntity class_746Var = class_310Var.player;
         int iRodDest = this.a.rodHotbarSlot - 1;
@@ -467,7 +453,6 @@ public final class a {
                 if (iSrcSlot < 0 || iDestSlot < 0) {
                     return false;
                 }
-                // 3-click swap: lấy cần cũ ra cursor -> đổi chỗ với cần mới -> đặt cần mới vào Hotbar
                 class_310Var.interactionManager.clickSlot(((ScreenHandler) class_1723Var).syncId, iDestSlot, 0, SlotActionType.PICKUP, class_746Var);
                 class_310Var.interactionManager.clickSlot(((ScreenHandler) class_1723Var).syncId, iSrcSlot, 0, SlotActionType.PICKUP, class_746Var);
                 class_310Var.interactionManager.clickSlot(((ScreenHandler) class_1723Var).syncId, iDestSlot, 0, SlotActionType.PICKUP, class_746Var);
@@ -478,12 +463,6 @@ public final class a {
         return false;
     }
 
-    /**
-     * Tự động tìm item cùng loại với mồi đã lưu (lastBaitItem) trong túi đồ
-     * và chuyển vào đúng ô Hotbar mồi khi ô đó bị hết. Nếu không còn item
-     * cùng loại nào nữa, tự động lấy đại 1 item khác (không phải cần câu,
-     * không phải ô cần/mồi) làm mồi thay thế và ghi nhớ loại mồi mới đó.
-     */
     private boolean refillBait(MinecraftClient class_310Var) {
         ClientPlayerEntity class_746Var = class_310Var.player;
         if (class_746Var.currentScreenHandler != class_746Var.playerScreenHandler) {
@@ -497,7 +476,6 @@ public final class a {
                 return true;
             }
         }
-        // Hết loại mồi cũ trong túi đồ -> lấy đại 1 item khác (không phải cần câu) ở ô chưa được chọn
         return doRefillFrom(class_310Var, class_746Var, iDest, iRod, itemStack -> !itemStack.isOf(Items.FISHING_ROD));
     }
 
