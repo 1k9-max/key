@@ -35,7 +35,7 @@ public final class f {
 
     private static final String aP = "MCowBQYDK2VwAyEAUgtSeudd9GRldGZM/30bl21tNkzxtmv9nDeMPRZSeQg=";
     private static final String aQ = "vgaf-2104-bridge-v54";
-    private static final String GITHUB_LICENSES_URL = "https://raw.githubusercontent.com/1k9-max/key/main/licenses.json";
+    private static final String GITHUB_LICENSES_URL = "https://raw.githubusercontent.com/210-hen/key/refs/heads/main/key/public/licenses.json";
     private static final long aR = 3000000000L;
     private static final long aS = 120000000000L;
     private final g aT;
