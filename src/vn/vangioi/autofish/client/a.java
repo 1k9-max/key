@@ -574,7 +574,7 @@ public final class a {
             return;
         }
         try {
-            class_310Var.getNetworkHandler().sendChatCommand("vgfi " + (z ? "on" : "off"));
+            class_310Var.getNetworkHandler().sendChatCommand("vgfishmod " + (z ? "on" : "off"));
         } catch (Exception e) {
         }
     }
