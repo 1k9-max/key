@@ -38,6 +38,8 @@ public final class a {
     private boolean justRefilledBait;
     private EnumC0000a lastObservedState;
     private long stateEnteredAtNanos;
+    private int rodMissingStreak;
+    private boolean hookSeenThisCast;
 
     public enum EnumC0000a {
         OFF,
@@ -111,6 +113,7 @@ public final class a {
             this.g = "Chuẩn bị câu";
             this.m = Double.NaN;
             this.lastObservedState = null;
+            this.rodMissingStreak = 0;
             e(class_310Var, "[AutoFish] Đã bật auto client-side.");
         }
     }
@@ -234,15 +237,31 @@ public final class a {
                 return;
             }
 
-            // Watchdog: nếu kẹt quá lâu ở cùng 1 trạng thái (ví dụ server âm thầm
-            // xoá phao câu mà không gửi thông báo gì khiến mod chờ vô thời hạn),
-            // tự động reset về trạng thái chuẩn bị thay vì đơ mãi.
+            // Theo dõi vị trí phao câu thật: nếu đang chờ cá cắn/đang kéo cá mà phao câu
+            // (fishHook) đột ngột biến mất (server thu cần/xoá phao giữa chừng) thì câu lại
+            // ngay lập tức, thay vì đoán mò theo thời gian cố định (câu cá ở đây vốn phải
+            // chờ lâu là bình thường, không nên coi "chờ lâu" là lỗi).
+            if (this.f == EnumC0000a.WAITING_BITE || this.f == EnumC0000a.FIGHTING) {
+                boolean hookPresent = class_310Var.player.fishHook != null && !class_310Var.player.fishHook.isRemoved();
+                if (hookPresent) {
+                    this.hookSeenThisCast = true;
+                } else if (this.hookSeenThisCast) {
+                    c(class_310Var, "Phao câu đã biến mất bất ngờ - câu lại");
+                    return;
+                }
+            }
+
+            // Watchdog dự phòng: nếu kẹt quá lâu ở cùng 1 trạng thái vì bất kỳ lý do nào khác
+            // (không riêng chuyện phao câu), vẫn tự động reset thay vì đơ mãi.
             if (this.f != this.lastObservedState) {
                 this.lastObservedState = this.f;
                 this.stateEnteredAtNanos = System.nanoTime();
-            } else if ((System.nanoTime() - this.stateEnteredAtNanos) / 1000000 > 90000) {
-                c(class_310Var, "Watchdog: kẹt quá lâu (có thể do server xoá phao câu) - tự khởi động lại");
-                return;
+            } else {
+                long watchdogMs = (this.f == EnumC0000a.WAITING_BITE) ? 95000 : 15000;
+                if ((System.nanoTime() - this.stateEnteredAtNanos) / 1000000 > watchdogMs) {
+                    c(class_310Var, "Watchdog: kẹt quá lâu - tự khởi động lại");
+                    return;
+                }
             }
 
             try {
@@ -359,6 +378,7 @@ public final class a {
         this.j = System.nanoTime();
         this.h = this.a.castSettleTicks;
         this.g = "Đã thả câu - chờ cá cắn";
+        this.hookSeenThisCast = false;
     }
 
     private boolean a(MinecraftClient class_310Var, boolean z) {
@@ -375,9 +395,16 @@ public final class a {
             return false;
         }
         if (!class_310Var.player.getInventory().getStack(this.a.rodHotbarSlot - 1).isOf(Items.FISHING_ROD)) {
+            this.rodMissingStreak++;
+            if (this.rodMissingStreak < 5) {
+                // Có thể client tạm thời chưa đồng bộ (vừa gắn mồi/đổi cần) - thử lại vài lần trước khi báo lỗi hẳn
+                this.g = "Đang kiểm tra lại Hotbar cần câu...";
+                return false;
+            }
             d(class_310Var, "Hotbar " + this.a.rodHotbarSlot + " không có cần câu");
             return false;
         }
+        this.rodMissingStreak = 0;
         if (!autoSwitchRodIfNeeded(class_310Var)) {
             d(class_310Var, "Cần câu gần hỏng và không tìm được cần thay thế trong túi đồ");
             return false;
